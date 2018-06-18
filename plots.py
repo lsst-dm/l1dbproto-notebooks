@@ -2,8 +2,6 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 
-plt.style.use('bmh')
-
 # default plot width, can change module-wise from outside
 plot_width = 12
 
@@ -31,7 +29,7 @@ def _read_csv(file_name, filter_count=True, bad_visits=None):
 def do_plot(ds, title, y, figsize=None):
     """Wrapper for Dataset.plot() with useful defaults"""
     figsize = figsize or _def_figsize()
-    ds.plot(y=y, style=['o', 'r+'], title=title, figsize=figsize)
+    ds.plot(y=y, style=['.', '.'], title=title, figsize=figsize)
 
 
 def do_boxplot(ds, by_col_name, columns, title='', bin=100, figsize=None):
