@@ -11,10 +11,12 @@ def _def_figsize(ratio=0.6):
     return (plot_width, plot_width*ratio)
 
 
-def _read_csv(file_name, filter_count=True, bad_visits=None):
+def _read_csv(file_name, filter_count=True, bad_visits=None, fix_select_real=False):
     """Read data from CSV file
     """
     ds = pd.read_csv(file_name, header=0, index_col='visit')
+    if fix_select_real:
+        ds.select_real *= 3
     dscount = None
     if filter_count:
         # filter out records doing COUNT(*) which takes long time
@@ -34,7 +36,7 @@ def do_plot(ds, title, y, figsize=None):
 
 def do_boxplot(ds, by_col_name, columns, title='', bin=100, figsize=None):
     """Make a boxplot by grouping data based on some column
-    
+
     Parameters
     ----------
     dataset : Dataset
@@ -71,8 +73,8 @@ def do_boxplot(ds, by_col_name, columns, title='', bin=100, figsize=None):
         plt.title("")
         plt.suptitle(title + ": " + col)
 
-def do_plots(file_name, title, bin=100, filter_count=True, bad_visits=None, 
-             what=('scatter', 'counts', 'box'), time='visit_real'):
+def do_plots(file_name, title, bin=100, filter_count=True, bad_visits=None,
+             what=('scatter', 'counts', 'box'), time='visit_real', fix_select_real=False):
     """Make bunch of plots for one time column.
 
     This method is typically used for multi-process configurations where only
@@ -94,15 +96,17 @@ def do_plots(file_name, title, bin=100, filter_count=True, bad_visits=None,
         Defines what plots to produce, can include 'scatter', 'counts', 'box'
     time : str
         Name of the column with time data
+    fix_select_real : bool
+        If True then "select_real" column will be multiplied by 3
     """
-    ds, dscount = _read_csv(file_name,  filter_count=filter_count, bad_visits=bad_visits)
-    
+    ds, dscount = _read_csv(file_name,  filter_count=filter_count, bad_visits=bad_visits, fix_select_real=fix_select_real)
+
     # do "scatter" plot
     if 'scatter' in what:
         do_plot(ds, title, y=[time])
     if 'counts' in what:
         do_plot(dscount, title, y=['obj_count', 'src_count'])
-    
+
     # box plots
     if 'box' in what:
         col_name = 'visit/' + str(bin)
@@ -111,7 +115,7 @@ def do_plots(file_name, title, bin=100, filter_count=True, bad_visits=None,
 
     return ds
 
-def do_plots_all(file_name, title, bin=100, filter_count=True):
+def do_plots_all(file_name, title, bin=100, filter_count=True, fix_select_real=False):
     """Make bunch of plots for one time column.
 
     This method is typically used for multi-process configurations where only
@@ -133,11 +137,13 @@ def do_plots_all(file_name, title, bin=100, filter_count=True):
         Defines what plots to produce, can include 'scatter', 'counts', 'box'
     time : str
         Name of the column with time data
+    fix_select_real : bool
+        If True then "select_real" column will be multiplied by 3
     """
-    ds, dscount = _read_csv(file_name,  filter_count=filter_count)
+    ds, dscount = _read_csv(file_name,  filter_count=filter_count, fix_select_real=fix_select_real)
 
     ds['obj_store'] = ds['obj_last_delete_real'] + ds['obj_last_insert_real'] + ds['obj_insert_real']
-    
+
     # do "scatter" plot
     do_plot(ds, title, y=['select_real', 'store_real'])
 
