@@ -115,7 +115,7 @@ def do_plots(file_name, title, bin=100, filter_count=True, bad_visits=None,
 
     return ds
 
-def do_plots_all(file_name, title, bin=100, filter_count=True, fix_select_real=False):
+def do_plots_all(file_name, title, bin=100, filter_count=True, plots=None, fix_select_real=False):
     """Make bunch of plots for one time column.
 
     This method is typically used for multi-process configurations where only
@@ -131,12 +131,8 @@ def do_plots_all(file_name, title, bin=100, filter_count=True, fix_select_real=F
         Grouping bin width (number of visits per bin) for box plots
     filter_count : bool
         If true then do not include visits where table sizes were queried
-    bad_visits : list
-        List of visits to exclude from plots
-    what : sequence of str
-        Defines what plots to produce, can include 'scatter', 'counts', 'box'
-    time : str
-        Name of the column with time data
+    plots : sequence of str
+        Names of the variables to plot, if None then default list is used
     fix_select_real : bool
         If True then "select_real" column will be multiplied by 3
     """
@@ -150,9 +146,9 @@ def do_plots_all(file_name, title, bin=100, filter_count=True, fix_select_real=F
     # box plots
     col_name = 'visit/' + str(bin)
     ds[col_name] = np.array(ds.index/bin, dtype=np.int64)
-    do_boxplot(ds, col_name, ['select_real', 'store_real'], bin=bin, title=title)
-    do_boxplot(ds, col_name, ['obj_select_real', 'obj_last_delete_real', 'obj_last_insert_real',
-                              'obj_insert_real', 'obj_store', 'src_select_real', 'src_insert_real',
-                              'fsrc_select_real', 'fsrc_insert_real'],
-               bin=bin, title=title, figsize=_def_figsize(.35))
+    if plots is None:
+        plots = ['select_real', 'store_real', 'obj_select_real', 'obj_last_delete_real',
+                 'obj_last_insert_real', 'obj_insert_real', 'obj_store',
+                 'src_select_real', 'src_insert_real', 'fsrc_select_real', 'fsrc_insert_real']
+    do_boxplot(ds, col_name, plots, bin=bin, title=title, figsize=_def_figsize(.35))
     return ds
