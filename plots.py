@@ -15,6 +15,8 @@ def _read_csv(file_name, filter_count=True, bad_visits=None, fix_select_real=Fal
     """Read data from CSV file
     """
     ds = pd.read_csv(file_name, header=0, index_col='visit')
+    if bad_visits:
+        ds.drop(bad_visits, inplace=True)
     if fix_select_real:
         ds.select_real *= 3
     dscount = None
@@ -22,8 +24,6 @@ def _read_csv(file_name, filter_count=True, bad_visits=None, fix_select_real=Fal
         # filter out records doing COUNT(*) which takes long time
         dscount = ds[ds.src_count.notnull()]
         ds = ds[ds.src_count.isnull()]
-    if bad_visits:
-        ds.drop(bad_visits, inplace=True)
     ds = ds.fillna(0, axis=1)
     return ds, dscount
 
@@ -115,7 +115,8 @@ def do_plots(file_name, title, bin=100, filter_count=True, bad_visits=None,
 
     return ds
 
-def do_plots_all(file_name, title, bin=100, filter_count=True, plots=None, fix_select_real=False):
+def do_plots_all(input, title, bin=100, filter_count=True, plots=None,
+                 bad_visits=None, fix_select_real=False):
     """Make bunch of plots for one time column.
 
     This method is typically used for multi-process configurations where only
@@ -123,8 +124,8 @@ def do_plots_all(file_name, title, bin=100, filter_count=True, plots=None, fix_s
 
     Parameters
     ----------
-    file_name : str
-        Name of the CSV file with data
+    input : `str` or `pandas.DataFrame`
+        Name of the CSV file with data or pre-filled DataFrame
     title : str
         Title for plots
     bin : int
@@ -133,10 +134,15 @@ def do_plots_all(file_name, title, bin=100, filter_count=True, plots=None, fix_s
         If true then do not include visits where table sizes were queried
     plots : sequence of str
         Names of the variables to plot, if None then default list is used
+    bad_visits : list
+        List of visits to exclude from plots
     fix_select_real : bool
         If True then "select_real" column will be multiplied by 3
     """
-    ds, dscount = _read_csv(file_name,  filter_count=filter_count, fix_select_real=fix_select_real)
+    if isinstance(input, pd.DataFrame):
+        ds = input
+    else:
+        ds, dscount = _read_csv(input,  filter_count=filter_count, bad_visits=bad_visits, fix_select_real=fix_select_real)
 
     ds['obj_store'] = ds['obj_last_delete_real'] + ds['obj_last_insert_real'] + ds['obj_insert_real']
 
