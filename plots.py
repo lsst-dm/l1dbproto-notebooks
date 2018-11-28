@@ -55,17 +55,19 @@ def do_boxplot(ds, by_col_name, columns, title='', bin=100, figsize=None):
 
     meanprops = dict(marker='s', markeredgecolor='black', markerfacecolor='red')
     for col in columns:
-        ds.boxplot(col, by=by_col_name, figsize=figsize, showmeans=True,
-                   meanprops=meanprops, sym='x', whis='range')
+        pos = ds[by_col_name].unique()
+        axes = ds.boxplot(col, by=by_col_name, figsize=figsize, showmeans=True,
+                          positions=pos, meanprops=meanprops, sym='x', whis='range')
         x = ds.index
         y = ds[col]
         try:
+            # fit with a line
             x = x/bin
             p = np.polyfit(x, y, 1)
             y = x*p[0] + p[1]
             label = "fit: {:.3f} + {:.3f}*visit/1000".format(p[1], p[0])
-            # x + 1 is needed because boxplot draws in strange coordinates
-            plt.plot(x+1, y, "--g", label=label)
+            # plot the line
+            axes.plot(x, y, "--g", label=label)
             plt.legend()
         except:
             pass
