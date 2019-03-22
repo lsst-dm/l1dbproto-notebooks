@@ -1,10 +1,19 @@
 import numpy as np
 import pandas as pd
+import seaborn as sns
 import matplotlib.pyplot as plt
 
 # default plot width, can change module-wise from outside
 plot_width = 12
 
+DEFAULT_PLOTS = ['select_real', 'store_real', 'obj_select_real', 'obj_last_delete_real',
+                 'obj_last_insert_real', 'obj_insert_real', 'obj_store',
+                 'src_select_real', 'src_insert_real', 'fsrc_select_real', 'fsrc_insert_real']
+
+DEFAULT_FITS = [
+    ['select_real', 'obj_select_real', 'src_select_real', 'fsrc_select_real'],
+    ['store_real', 'obj_last_insert_real', 'obj_insert_real', 'src_insert_real', 'fsrc_insert_real'],
+]
 
 def _def_figsize(ratio=0.6):
     """Return default figure size given y/x ratio"""
@@ -34,7 +43,7 @@ def do_plot(ds, title, y, figsize=None):
     ds.plot(y=y, style=['.', '.'], title=title, figsize=figsize)
 
 
-def do_boxplot(ds, by_col_name, columns, title='', bin=100, figsize=None):
+def do_boxplot(ds, by_col_name, columns, title='', bin=100, figsize=None, whis="range"):
     """Make a boxplot by grouping data based on some column
 
     Parameters
@@ -49,34 +58,39 @@ def do_boxplot(ds, by_col_name, columns, title='', bin=100, figsize=None):
     bin : int
         Grouping bin width (number of visits per bin)
     figsize : tuple
+    whis : 
+        option for boxplot
     """
 
     figsize = figsize or _def_figsize(0.4)
 
     meanprops = dict(marker='s', markeredgecolor='black', markerfacecolor='red')
     for col in columns:
-        pos = ds[by_col_name].unique()
+        pos = ds[by_col_name].unique() * (float(bin)/1000)
+        width = float(bin)/2000
         axes = ds.boxplot(col, by=by_col_name, figsize=figsize, showmeans=True,
-                          positions=pos, meanprops=meanprops, sym='x', whis='range')
+                          positions=pos, widths=width, meanprops=meanprops, sym='x', whis=whis)
+        axes.set_xticks(pos)
+        axes.set_xticklabels(["{:.4g}".format(p) for p in pos])
         x = ds.index
         y = ds[col]
         try:
-            # fit with a line
-            x = x/bin
+            # fit with a straight line
             p = np.polyfit(x, y, 1)
-            y = x*p[0] + p[1]
-            label = "fit: {:.3f} + {:.3f}*visit/1000".format(p[1], p[0])
-            # plot the line
-            axes.plot(x, y, "--g", label=label)
+            label = "fit: {:.3f} + {:.3f}*visit/1000".format(p[1], p[0]*1000)
+            # plot the line, axes are in the space of by_col_name
+            y = pos*(p[0]*1000) + p[1]
+            axes.plot(pos, y, "--g", label=label)
             plt.legend()
         except:
-            pass
+            raise
 
         plt.title("")
         plt.suptitle(title + ": " + col)
 
 def do_plots(file_name, title, bin=100, filter_count=True, bad_visits=None,
-             what=('scatter', 'counts', 'box'), time='visit_real', fix_select_real=False):
+             what=('scatter', 'counts', 'box', 'fit'),
+             time='visit_real', fix_select_real=False, whis="range"):
     """Make bunch of plots for one time column.
 
     This method is typically used for multi-process configurations where only
@@ -111,14 +125,18 @@ def do_plots(file_name, title, bin=100, filter_count=True, bad_visits=None,
 
     # box plots
     if 'box' in what:
-        col_name = 'visit/' + str(bin)
-        ds[col_name] = np.array(ds.index/bin, dtype=np.int64)
-        do_boxplot(ds, col_name, [time], bin=bin, title=title)
+        col_name = 'visit/1000'
+        ds[col_name] = np.array((ds.index+bin/2)/bin, dtype=np.int64)
+        do_boxplot(ds, col_name, [time], bin=bin, title=title, whis=whis)
+
+    # box plots
+    if 'fit' in what:
+        plot_fit_times(ds, [time], title=title)
 
     return ds
 
-def do_plots_all(input, title, bin=100, filter_count=True, plots=None,
-                 bad_visits=None, fix_select_real=False):
+def do_plots_all(input, title, bin=100, filter_count=True, plots=None, fits=None,
+                 bad_visits=None, fix_select_real=False, whis="range"):
     """Make bunch of plots for one time column.
 
     This method is typically used for multi-process configurations where only
@@ -150,13 +168,54 @@ def do_plots_all(input, title, bin=100, filter_count=True, plots=None,
 
     # do "scatter" plot
     do_plot(ds, title, y=['select_real', 'store_real'])
+    plot_fit_times(ds, ['select_real', 'store_real'], title=title)
 
     # box plots
-    col_name = 'visit/' + str(bin)
-    ds[col_name] = np.array(ds.index/bin, dtype=np.int64)
+    col_name = 'visit/1000'
+    ds[col_name] = np.array((ds.index+bin/2)/bin, dtype=np.int64)
     if plots is None:
-        plots = ['select_real', 'store_real', 'obj_select_real', 'obj_last_delete_real',
-                 'obj_last_insert_real', 'obj_insert_real', 'obj_store',
-                 'src_select_real', 'src_insert_real', 'fsrc_select_real', 'fsrc_insert_real']
-    do_boxplot(ds, col_name, plots, bin=bin, title=title, figsize=_def_figsize(.35))
+        plots = DEFAULT_PLOTS
+    do_boxplot(ds, col_name, plots, bin=bin, title=title, figsize=_def_figsize(.35), whis=whis)
+    if fits is None:
+        fits = DEFAULT_FITS
+    for fit in fits:
+        plot_fit_times(ds, fit, title=title)
     return ds
+
+def plot_fit_times(ds, columns, nbins=30, ax=None, figsize=None, title="", ylabel="Time, sec"):
+    """Plot a fit of single column vs visit
+
+    Parameteres
+    -----------
+    ds : `pandas.DataFrame`
+    columns : list of str
+        Names of the columns with time data
+    nbins : int
+        Number of bins for plotting
+    ax : Axes
+    figsize : tuple, optional
+    ylabel : str
+        Label for Y axis
+
+    Returns
+    -------
+    ax
+    """
+    if ax is None:
+        figsize = figsize or _def_figsize(0.6)
+        f, ax = plt.subplots(figsize=figsize)
+    if title:
+        plt.title(title)
+
+    visits = pd.Series(ds.index)
+    for col in columns:
+        coldata = ds[col]
+        p = np.polyfit(visits, coldata, 1)
+        label = "{}: {:.3f} + {:.3f}*visit/1000".format(col, p[1], p[0]*1000)
+        sns.regplot(visits, coldata, x_bins=nbins, line_kws=dict(linestyle="--"),
+                    label=label, ax=ax)
+    if ylabel:
+        ax.set_ylabel("Time, sec")
+    ax.legend(loc="best")
+
+    return ax
