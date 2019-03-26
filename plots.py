@@ -219,3 +219,23 @@ def plot_fit_times(ds, columns, nbins=30, ax=None, figsize=None, title="", ylabe
     ax.legend(loc="best")
 
     return ax
+
+def plot_fraction_above(ds, by_col_name, bin, column="visit_real", title='',
+                        threshold=10, figsize=None, ax=None):
+    """Plot fraction of the events where time exceeds threshold.
+    """
+    if ax is None:
+        figsize = figsize or _def_figsize(0.4)
+        f, ax = plt.subplots(figsize=figsize)
+    if title:
+        plt.title(title)
+
+    ds["fraction_above"] = ds[column] > threshold
+    frac = ds[[by_col_name, "fraction_above"]].groupby(by_col_name).agg("mean")
+    x = frac.index * (float(bin)/1000)
+    ax.plot(x, frac.fraction_above, marker="*", label="{} > {:g}".format(column, threshold))
+    ax.set_xlabel("visit/1000")
+    ax.set_ylabel("Fraction of visits")
+    ax.legend(loc="best")
+
+    return ax
