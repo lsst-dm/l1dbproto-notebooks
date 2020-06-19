@@ -2,6 +2,7 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
+from scipy.optimize import least_squares
 
 # default plot width, can change module-wise from outside
 plot_width = 12
@@ -182,7 +183,7 @@ def do_plots_all(input, title, bin=100, filter_count=True, plots=None, fits=None
         plot_fit_times(ds, fit, title=title)
     return ds
 
-def plot_fit_times(ds, columns, nbins=30, ax=None, figsize=None, title="", ylabel="Time, sec"):
+def plot_fit_times(ds, columns, mode='poly', nbins=30, ax=None, figsize=None, title="", ylabel="Time, sec"):
     """Plot a fit of single column vs visit
 
     Parameteres
@@ -201,6 +202,22 @@ def plot_fit_times(ds, columns, nbins=30, ax=None, figsize=None, title="", ylabe
     -------
     ax
     """
+    def fun_lin(x, visits, data):
+        # print(x)
+        visits = visits.to_numpy()
+        data = data.to_numpy()
+        p0, = x
+        res = p0*visits - data
+        return res
+
+    def fun_poly(x, visits, data):
+        # print(x)
+        visits = visits.to_numpy()
+        data = data.to_numpy()
+        p0, p1 = x
+        res = p0*visits + p1 - data
+        return res
+
     if ax is None:
         figsize = figsize or _def_figsize(0.6)
         f, ax = plt.subplots(figsize=figsize)
@@ -210,10 +227,19 @@ def plot_fit_times(ds, columns, nbins=30, ax=None, figsize=None, title="", ylabe
     visits = pd.Series(ds.index)
     for col in columns:
         coldata = ds[col]
-        p = np.polyfit(visits, coldata, 1)
-        label = "{}: {:.3f} + {:.3f}*visit/1000".format(col, p[1], p[0]*1000)
+
+        if mode == 'poly':
+            ores = least_squares(fun_poly, (0., 0.), args=(visits, coldata))
+            p = ores.x
+            label = "{}: {:.3f} + {:.3f}*visit/1000".format(col, p[1], p[0]*1000)
+        elif mode == 'lin':
+            ores = least_squares(fun_lin, (0.,), args=(visits, coldata))
+            p = ores.x
+            label = "{}: {:.3f}*visit/1000".format(col, p[0]*1000)
+
         sns.regplot(visits, coldata, x_bins=nbins, line_kws=dict(linestyle="--"),
                     label=label, ax=ax)
+
     if ylabel:
         ax.set_ylabel("Time, sec")
     ax.legend(loc="best")
