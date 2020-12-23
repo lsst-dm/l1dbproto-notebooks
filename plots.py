@@ -137,7 +137,7 @@ def do_plots(file_name, title, bin=100, filter_count=True, bad_visits=None,
     return ds
 
 def do_plots_all(input, title, bin=100, filter_count=True, plots=None, fits=None,
-                 bad_visits=None, fix_select_real=False, whis="range"):
+                 fit_modes=None, bad_visits=None, fix_select_real=False, whis="range"):
     """Make bunch of plots for one time column.
 
     This method is typically used for multi-process configurations where only
@@ -155,6 +155,11 @@ def do_plots_all(input, title, bin=100, filter_count=True, plots=None, fits=None
         If true then do not include visits where table sizes were queried
     plots : sequence of str
         Names of the variables to plot, if None then default list is used
+    fits : sequence of sequence
+        Groups of columns used for time plots with fits
+    fit_modes : dict
+        Maps column name to fit mode. Fit mode can be one of 'lin', 'poly',
+        or None. If there is no mapping for a column then 'poly' is used.
     bad_visits : list
         List of visits to exclude from plots
     fix_select_real : bool
@@ -169,7 +174,7 @@ def do_plots_all(input, title, bin=100, filter_count=True, plots=None, fits=None
 
     # do "scatter" plot
     do_plot(ds, title, y=['select_real', 'store_real'])
-    plot_fit_times(ds, ['select_real', 'store_real'], title=title)
+    plot_fit_times(ds, ['select_real', 'store_real'], title=title, fit_modes=fit_modes)
 
     # box plots
     col_name = 'visit/1000'
@@ -180,10 +185,54 @@ def do_plots_all(input, title, bin=100, filter_count=True, plots=None, fits=None
     if fits is None:
         fits = DEFAULT_FITS
     for fit in fits:
-        plot_fit_times(ds, fit, title=title)
+        plot_fit_times(ds, fit, title=title, fit_modes=fit_modes)
     return ds
 
-def plot_fit_times(ds, columns, mode='poly', nbins=30, ax=None, figsize=None, title="", ylabel="Time, sec"):
+def fit_times(ds, column, mode='poly'):
+    """Fit column vs visit.
+
+    Parameteres
+    -----------
+    ds : `pandas.DataFrame`
+    column : `str`
+        Names of the column with time data
+    mode : str
+        "lin" - linear fit (y = p0*x), "poly" - p1 fit (y = p0*x + p1)
+
+    Returns
+    -------
+    ax
+    """
+
+    def fun_lin(x, visits, data):
+        # print(x)
+        visits = visits.to_numpy()
+        data = data.to_numpy()
+        p0, = x
+        res = p0*visits - data
+        return res
+
+    def fun_poly(x, visits, data):
+        # print(x)
+        visits = visits.to_numpy()
+        data = data.to_numpy()
+        p0, p1 = x
+        res = p0*visits + p1 - data
+        return res
+
+    visits = pd.Series(ds.index)
+    params = {}
+    coldata = ds[column]
+    if mode == 'poly':
+        ores = least_squares(fun_poly, (0., 0.), args=(visits, coldata))
+        p = ores.x
+    elif mode == 'lin':
+        ores = least_squares(fun_lin, (0.,), args=(visits, coldata))
+        p = ores.x
+    return p
+
+
+def plot_fit_times(ds, columns, fit_modes=None, nbins=50, ax=None, figsize=None, title="", ylabel="Time, sec"):
     """Plot a fit of single column vs visit
 
     Parameteres
@@ -191,6 +240,9 @@ def plot_fit_times(ds, columns, mode='poly', nbins=30, ax=None, figsize=None, ti
     ds : `pandas.DataFrame`
     columns : list of str
         Names of the columns with time data
+    fit_modes : dict
+        Maps column name to fit mode. Fit mode can be one of 'lin', 'poly',
+        or None. If there is no mapping for a column then 'poly' is used.
     nbins : int
         Number of bins for plotting
     ax : Axes
@@ -228,17 +280,26 @@ def plot_fit_times(ds, columns, mode='poly', nbins=30, ax=None, figsize=None, ti
     for col in columns:
         coldata = ds[col]
 
+        mode = 'poly'
+        if fit_modes:
+            mode = fit_modes.get(col, 'poly')
+
         if mode == 'poly':
             ores = least_squares(fun_poly, (0., 0.), args=(visits, coldata))
             p = ores.x
             label = "{}: {:.3f} + {:.3f}*visit/1000".format(col, p[1], p[0]*1000)
+            fit_reg = True
         elif mode == 'lin':
             ores = least_squares(fun_lin, (0.,), args=(visits, coldata))
             p = ores.x
             label = "{}: {:.3f}*visit/1000".format(col, p[0]*1000)
+            fit_reg = True
+        else:
+            label = col
+            fit_reg = False
 
-        sns.regplot(visits, coldata, x_bins=nbins, line_kws=dict(linestyle="--"),
-                    label=label, ax=ax)
+        sns.regplot(x=visits, y=coldata, x_bins=nbins, line_kws=dict(linestyle="--"),
+                    label=label, ax=ax, fit_reg=fit_reg)
 
     if ylabel:
         ax.set_ylabel("Time, sec")
