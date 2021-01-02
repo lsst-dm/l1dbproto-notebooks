@@ -12,8 +12,10 @@ DEFAULT_PLOTS = ['select_real', 'store_real', 'obj_select_real', 'obj_last_delet
                  'src_select_real', 'src_insert_real', 'fsrc_select_real', 'fsrc_insert_real']
 
 DEFAULT_FITS = [
-    ['select_real', 'obj_select_real', 'src_select_real', 'fsrc_select_real'],
-    ['store_real', 'obj_last_insert_real', 'obj_insert_real', 'src_insert_real', 'fsrc_insert_real'],
+    ['obj_select_real', 'src_select_real', 'fsrc_select_real', 'select_real'],
+    ['obj_select_cpu',  'src_select_cpu',  'fsrc_select_cpu'],
+    ['obj_insert_real', 'src_insert_real', 'fsrc_insert_real', 'store_real', 'obj_last_insert_real', ],
+    ['obj_insert_cpu',  'src_insert_cpu',  'fsrc_insert_cpu'],
 ]
 
 def _def_figsize(ratio=0.6):
@@ -137,7 +139,8 @@ def do_plots(file_name, title, bin=100, filter_count=True, bad_visits=None,
     return ds
 
 def do_plots_all(input, title, bin=100, filter_count=True, plots=None, fits=None,
-                 fit_modes=None, bad_visits=None, fix_select_real=False, whis="range"):
+                 fit_modes=None, bad_visits=None, fix_select_real=False, whis="range",
+                 fit_nbins=50):
     """Make bunch of plots for one time column.
 
     This method is typically used for multi-process configurations where only
@@ -164,6 +167,8 @@ def do_plots_all(input, title, bin=100, filter_count=True, plots=None, fits=None
         List of visits to exclude from plots
     fix_select_real : bool
         If True then "select_real" column will be multiplied by 3
+    fit_nbins : int
+        Number of bis for fit plots.
     """
     if isinstance(input, pd.DataFrame):
         ds = input
@@ -174,7 +179,7 @@ def do_plots_all(input, title, bin=100, filter_count=True, plots=None, fits=None
 
     # do "scatter" plot
     do_plot(ds, title, y=['select_real', 'store_real'])
-    plot_fit_times(ds, ['select_real', 'store_real'], title=title, fit_modes=fit_modes)
+    plot_fit_times(ds, ['select_real', 'store_real'], title=title, fit_modes=fit_modes, nbins=fit_nbins)
 
     # box plots
     col_name = 'visit/1000'
@@ -185,7 +190,7 @@ def do_plots_all(input, title, bin=100, filter_count=True, plots=None, fits=None
     if fits is None:
         fits = DEFAULT_FITS
     for fit in fits:
-        plot_fit_times(ds, fit, title=title, fit_modes=fit_modes)
+        plot_fit_times(ds, fit, title=title, fit_modes=fit_modes, nbins=fit_nbins)
     return ds
 
 def fit_times(ds, column, mode='poly'):
@@ -232,7 +237,7 @@ def fit_times(ds, column, mode='poly'):
     return p
 
 
-def plot_fit_times(ds, columns, fit_modes=None, nbins=50, ax=None, figsize=None, title="", ylabel="Time, sec"):
+def plot_fit_times(ds, columns, fit_modes=None, nbins=75, ax=None, figsize=None, title="", ylabel="Time, sec"):
     """Plot a fit of single column vs visit
 
     Parameteres
@@ -287,12 +292,12 @@ def plot_fit_times(ds, columns, fit_modes=None, nbins=50, ax=None, figsize=None,
         if mode == 'poly':
             ores = least_squares(fun_poly, (0., 0.), args=(visits, coldata))
             p = ores.x
-            label = "{}: {:.3f} + {:.3f}*visit/1000".format(col, p[1], p[0]*1000)
+            label = "{}: {:.4f} + {:.4f}*visit/1000".format(col, p[1], p[0]*1000)
             fit_reg = True
         elif mode == 'lin':
             ores = least_squares(fun_lin, (0.,), args=(visits, coldata))
             p = ores.x
-            label = "{}: {:.3f}*visit/1000".format(col, p[0]*1000)
+            label = "{}: {:.4f}*visit/1000".format(col, p[0]*1000)
             fit_reg = True
         else:
             label = col
