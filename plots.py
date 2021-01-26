@@ -16,6 +16,7 @@ DEFAULT_FITS = [
     ['obj_select_cpu',  'src_select_cpu',  'fsrc_select_cpu'],
     ['obj_insert_real', 'src_insert_real', 'fsrc_insert_real', 'store_real', 'obj_last_insert_real', ],
     ['obj_insert_cpu',  'src_insert_cpu',  'fsrc_insert_cpu'],
+    ['store_cpu'],
 ]
 
 def _def_figsize(ratio=0.6):
@@ -139,7 +140,7 @@ def do_plots(file_name, title, bin=100, filter_count=True, bad_visits=None,
     return ds
 
 def do_plots_all(input, title, bin=100, filter_count=True, plots=None, fits=None,
-                 fit_modes=None, bad_visits=None, fix_select_real=False, whis="range",
+                 fit_mode="poly", bad_visits=None, fix_select_real=False, whis="range",
                  fit_nbins=50):
     """Make bunch of plots for one time column.
 
@@ -160,8 +161,8 @@ def do_plots_all(input, title, bin=100, filter_count=True, plots=None, fits=None
         Names of the variables to plot, if None then default list is used
     fits : sequence of sequence
         Groups of columns used for time plots with fits
-    fit_modes : dict
-        Maps column name to fit mode. Fit mode can be one of 'lin', 'poly',
+    fit_mode : str or dict
+        Dict maps column name to fit mode. Fit mode can be one of 'lin', 'poly',
         or None. If there is no mapping for a column then 'poly' is used.
     bad_visits : list
         List of visits to exclude from plots
@@ -179,7 +180,7 @@ def do_plots_all(input, title, bin=100, filter_count=True, plots=None, fits=None
 
     # do "scatter" plot
     do_plot(ds, title, y=['select_real', 'store_real'])
-    plot_fit_times(ds, ['select_real', 'store_real'], title=title, fit_modes=fit_modes, nbins=fit_nbins)
+    plot_fit_times(ds, ['select_real', 'store_real'], title=title, fit_mode=fit_mode, nbins=fit_nbins)
 
     # box plots
     col_name = 'visit/1000'
@@ -190,7 +191,7 @@ def do_plots_all(input, title, bin=100, filter_count=True, plots=None, fits=None
     if fits is None:
         fits = DEFAULT_FITS
     for fit in fits:
-        plot_fit_times(ds, fit, title=title, fit_modes=fit_modes, nbins=fit_nbins)
+        plot_fit_times(ds, fit, title=title, fit_mode=fit_mode, nbins=fit_nbins)
     return ds
 
 def fit_times(ds, column, mode='poly'):
@@ -237,7 +238,7 @@ def fit_times(ds, column, mode='poly'):
     return p
 
 
-def plot_fit_times(ds, columns, fit_modes=None, nbins=75, ax=None, figsize=None, title="", ylabel="Time, sec"):
+def plot_fit_times(ds, columns, fit_mode="poly", nbins=75, ax=None, figsize=None, title="", ylabel="Time, sec"):
     """Plot a fit of single column vs visit
 
     Parameteres
@@ -245,8 +246,8 @@ def plot_fit_times(ds, columns, fit_modes=None, nbins=75, ax=None, figsize=None,
     ds : `pandas.DataFrame`
     columns : list of str
         Names of the columns with time data
-    fit_modes : dict
-        Maps column name to fit mode. Fit mode can be one of 'lin', 'poly',
+    fit_mode : str or dict
+        Dict maps column name to fit mode. Fit mode can be one of 'lin', 'poly',
         or None. If there is no mapping for a column then 'poly' is used.
     nbins : int
         Number of bins for plotting
@@ -285,9 +286,10 @@ def plot_fit_times(ds, columns, fit_modes=None, nbins=75, ax=None, figsize=None,
     for col in columns:
         coldata = ds[col]
 
-        mode = 'poly'
-        if fit_modes:
-            mode = fit_modes.get(col, 'poly')
+        if hasattr(fit_mode, "get"):
+            mode = fit_mode.get(col, 'poly')
+        else:
+            mode = fit_mode
 
         if mode == 'poly':
             ores = least_squares(fun_poly, (0., 0.), args=(visits, coldata))
