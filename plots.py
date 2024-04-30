@@ -169,7 +169,7 @@ def do_plots_all(input, title, bin=100, filter_count=True, plots=None, fits=None
     fix_select_real : bool
         If True then "select_real" column will be multiplied by 3
     fit_nbins : int
-        Number of bis for fit plots.
+        Number of bins for fit plots.
     """
     if isinstance(input, pd.DataFrame):
         ds = input
